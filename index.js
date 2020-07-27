@@ -1,5 +1,8 @@
 const express = require('express')
 const morgan=require('morgan')
+const bodyParser = require('body-parser')
+require('dotenv').config()
+
 const cors = require('cors')
 
 const app = express()
@@ -8,6 +11,11 @@ app.use(express.static('build'))
 
 app.use(express.json())
 app.use(cors())
+
+const Person = require('./models/person')
+const { response } = require('express')
+
+app.use(bodyParser.json())
 
 
   
@@ -56,16 +64,17 @@ app.get('/info',(req,res) => {
 
     res.send('<p>Phonebook has info for ' +persons.length +' people</p>'+date+' (Eactern European Standard Time)')
 })
+
+
+
+
 app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(person => person.id === id)
-    
-    if (person) {
-        response.json(person)
-      } else {
-        response.status(404).end()
-      }
+      Person.findById(rewuest.params.id).then(person => {
+        response.json(person.toJSON())
+      })
   })
+
+
 
   app.delete('/api/persons/:id', (request, response) => {
     const id = Number(request.params.id)
@@ -74,9 +83,19 @@ app.get('/api/persons/:id', (request, response) => {
     response.status(204).end()
   })
 
+
+
   app.get('/api/persons', (req, res) => {
-    res.end(JSON.stringify(persons))
+    Person.find({}).then(persons =>{
+    res.json(persons.map(person => person.toJSON()))
+
+
+    })
   })
+
+
+  
+
 
 
 
@@ -116,10 +135,32 @@ app.post('/api/persons', (req, res) => {
 })
 
 
+app.post('/api/persons', (request, response) => {
+  const body = request.body
+
+  if (body.content === undefined) {
+    return response.status(400).json({ error: 'content missing' })
+  }
+
+  
+
+  const person = new Person({
+    name: body.name,
+    number: body.number
+  })
+
+  person.save().then(savedPerson => {
+    response.json(savedPerson.toJSON())
+  })
+})
+
+
 const unknownEndpoint = (request, response) => {
     response.status(404).send({ error: 'unknown endpoint' })
   }
   
+  
+
   
 app.use(unknownEndpoint)
 const PORT = process.env.PORT || 3001
