@@ -37,40 +37,37 @@ app.use(express.static('build'))
 
 app.use(morgenLogger) 
 
-
-
-app.get('/info',(req,res) => {
-    const date=new Date();
-
-
-    res.send('<p>Phonebook has info for ' +persons.length +' people</p>'+date+' (Eactern European Standard Time)')
+app.get('/', (req, res) => {
+  res.send('<h1>Phonebook backend server</h1><p>Use /api/persons for REST interface</p>')
 })
 
+app.get('/info',(req,res,next) => {
+    Person.countDocuments({})
+        .then(count => {
+            res.send(`<p>Phonebook has info for ${count} people.</p><p>${new Date()}</p>`)
+        })
+        .catch(error => next(error))
+})
 
-  app.get('/api/persons', (req, res) => {
-    Person.find({}).then(persons =>{
-    res.json(persons.map(person => person.toJSON()))
+   
 
 
+  app.get('/api/persons', (req, res,next) => {
+    Person.find({})
+    .then(persons =>{
+    res.json(persons)
     })
+    .catch(error =>next(error))
   })
 
-  const generateId = () => {
-    let randomId = () => Math.floor(Math.random() * 1000);
-    let id = randomId(); 
-    while (persons.some((p) => p.id === id)) {
-        id = randomId();
-    }
-    return id
-}  
 
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response,next) => {
   const body = request.body
 
  
  if (!body.name || !body.number) {
-    return res.status(400).json({
+    return response.status(400).json({
       error: 'Name and/or number missing'
     })
   }
@@ -80,14 +77,16 @@ app.post('/api/persons', (request, response) => {
     number: body.number
   })
 
-  person.save().then(savedPerson => {
-    response.json(savedPerson.toJSON())
+  person.save()
+  .then(savedPerson => {
+    response.json(savedPerson)
   })
+  .catch(error => next(error))
 })
 
 
 app.get('/api/persons/:id', (request, response) => {
-      Person.findById(rewuest.params.id)
+      Person.findById(request.params.id)
       .then(person => {
             if (person) {
               response.json(person)
@@ -117,7 +116,7 @@ app.put('/api/persons/:id', (request, response, next) => {
     number: body.number,
   }
 
-  Person.findByIdAndUpdate(request.params.id, person, { new: true })
+  Person.findByIdAndUpdate(request.params.id, person, { runValidators: true, new: true, context: 'query' })
     .then(updatedPerson => {
       response.json(updatedPerson)
     })
@@ -131,16 +130,14 @@ const errorHandler = (error, request, response, next) => {
 
   if (error.name === 'CastError') {
     return response.status(400).send({ error: 'malformatted id' })
-  } 
+  } else if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message })
+}
 
   next(error)
 }
 
 app.use(errorHandler)
-
-
-
-
 
 
 
@@ -151,6 +148,7 @@ const unknownEndpoint = (request, response) => {
   
 
 app.use(unknownEndpoint)
+
 const PORT = process.env.PORT
 
 app.listen(PORT, () => {
